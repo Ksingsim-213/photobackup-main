@@ -1,0 +1,9 @@
+build/bin
+frontend/node_modules
+frontend/.nuxt
+frontend/dist
+frontend/.output/nitro.json
+frontend/package.json.md5
+frontend/.output/public/*
+!frontend/.output/public/.gitkeep
+frontend/wailsjs

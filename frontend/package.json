@@ -1,0 +1,17 @@
+{
+  "name": "photobackup-frontend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev",
+    "generate": "nuxt generate"
+  },
+  "dependencies": {
+    "@fontsource/ibm-plex-sans-thai": "^5.1.0",
+    "nuxt": "^3.16.0",
+    "vue": "^3.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5"
+  }
+}

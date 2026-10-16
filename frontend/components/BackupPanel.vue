@@ -83,7 +83,7 @@ async function analyzeOnly() {
     </div>
     <div class="row" style="margin-top:14px; gap:22px">
       <label class="check"><input v-model="deleteSource" type="checkbox" /> ย้าย (ลบไฟล์ต้นทางหลังสำรองสำเร็จ)</label>
-      <label class="check"><input v-model="autoAnalyze" type="checkbox" /> วิเคราะห์ภาพด้วย Claude หลังสำรองเสร็จ</label>
+      <label class="check"><input v-model="autoAnalyze" type="checkbox" /> วิเคราะห์ภาพด้วย Gemini หลังสำรองเสร็จ</label>
     </div>
     <div class="row" style="margin-top:16px">
       <button class="btn primary" :disabled="running || !source || !dest" @click="run">

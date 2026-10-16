@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,83 +20,112 @@ import (
 	"gorm.io/gorm"
 )
 
-// เปลี่ยนเป็น "claude-sonnet-5-5" ได้ถ้าต้องการความละเอียดมากขึ้น (แพงกว่า)
-const claudeModel = "claude-haiku-5-5"
+const geminiModel = "gemini-2.5-flash"
 
 const analyzePrompt = `วิเคราะห์ภาพนี้ แล้วตอบกลับเป็น JSON เท่านั้น ห้ามมีข้อความอื่นหรือ markdown
 รูปแบบ: {"caption": "...", "tags": ["...", "..."]}
 - caption: คำอธิบายภาพเป็นภาษาไทย 1-2 ประโยค ระบุสิ่งสำคัญ สถานที่ กิจกรรม บรรยากาศ
 - tags: 5-8 คำ ภาษาไทย คำสั้น ๆ เป็นคำนาม (วัตถุ ฉาก กิจกรรม สี ประเภทภาพ) ไม่ซ้ำกัน`
 
-var errNoKey = errors.New("ยังไม่ได้ตั้งค่า Anthropic API key")
+var errNoKey = errors.New("ยังไม่ได้ตั้งค่า Gemini API key")
 
 type analysis struct {
 	Caption string   `json:"caption"`
 	Tags    []string `json:"tags"`
 }
 
-func (a *App) callClaude(ctx context.Context, jpg []byte) (*analysis, error) {
+func (a *App) callGemini(ctx context.Context, jpg []byte) (*analysis, error) {
 	key := a.apiKey()
 	if key == "" {
 		return nil, errNoKey
 	}
-	payload, _ := json.Marshal(map[string]any{
-		"model":      claudeModel,
-		"max_tokens": 400,
-		"messages": []any{map[string]any{
-			"role": "user",
-			"content": []any{
-				map[string]any{"type": "image", "source": map[string]any{
-					"type": "base64", "media_type": "image/jpeg", "data": base64.StdEncoding.EncodeToString(jpg)}},
-				map[string]any{"type": "text", "text": analyzePrompt},
+	payload, err := json.Marshal(map[string]any{
+		"contents": []any{map[string]any{
+			"parts": []any{
+				map[string]any{"inline_data": map[string]any{
+					"mime_type": "image/jpeg",
+					"data":      base64.StdEncoding.EncodeToString(jpg),
+				}},
+				map[string]any{"text": analyzePrompt},
 			},
 		}},
+		"generationConfig": map[string]any{
+			"responseMimeType": "application/json",
+			"maxOutputTokens":  400,
+		},
 	})
+	if err != nil {
+		return nil, fmt.Errorf("สร้างคำขอ Gemini ไม่สำเร็จ: %w", err)
+	}
 	client := &http.Client{Timeout: 60 * time.Second}
 	var lastErr error
 	for attempt := 0; attempt < 3; attempt++ {
-		req, _ := http.NewRequestWithContext(ctx, "POST", "https://api.anthropic.com/v1/messages", bytes.NewReader(payload))
-		req.Header.Set("x-api-key", key)
-		req.Header.Set("anthropic-version", "2023-06-01")
+		endpoint := "https://generativelanguage.googleapis.com/v1beta/models/" + geminiModel + ":generateContent?key=" + url.QueryEscape(key)
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
+		if err != nil {
+			return nil, fmt.Errorf("สร้างคำขอ Gemini ไม่สำเร็จ: %w", err)
+		}
 		req.Header.Set("content-type", "application/json")
 		resp, err := client.Do(req)
 		if err != nil {
 			lastErr = err
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
 			time.Sleep(time.Duration(attempt+1) * 2 * time.Second)
 			continue
 		}
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		body, readErr := io.ReadAll(resp.Body)
+		closeErr := resp.Body.Close()
+		if readErr != nil {
+			return nil, fmt.Errorf("อ่านผลตอบกลับจาก Gemini ไม่สำเร็จ: %w", readErr)
+		}
+		if closeErr != nil {
+			return nil, fmt.Errorf("ปิดผลตอบกลับจาก Gemini ไม่สำเร็จ: %w", closeErr)
+		}
 		if resp.StatusCode == 429 || resp.StatusCode >= 500 {
 			lastErr = fmt.Errorf("API %d", resp.StatusCode)
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
 			time.Sleep(time.Duration(attempt+1) * 2 * time.Second)
 			continue
 		}
-		if resp.StatusCode != 200 {
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			msg := string(body)
 			if len(msg) > 200 {
 				msg = msg[:200]
 			}
-			return nil, fmt.Errorf("API %d: %s", resp.StatusCode, msg)
+			return nil, fmt.Errorf("Gemini API %d: %s", resp.StatusCode, msg)
 		}
-		var out struct {
-			Content []struct {
-				Type string `json:"type"`
-				Text string `json:"text"`
-			} `json:"content"`
-		}
-		if err := json.Unmarshal(body, &out); err != nil {
-			return nil, err
-		}
-		var text string
-		for _, c := range out.Content {
-			if c.Type == "text" {
-				text += c.Text
-			}
-		}
-		return parseAnalysis(text)
+		return parseGeminiResponse(body)
 	}
 	return nil, lastErr
+}
+
+func parseGeminiResponse(body []byte) (*analysis, error) {
+	var out struct {
+		Candidates []struct {
+			Content struct {
+				Parts []struct {
+					Text string `json:"text"`
+				} `json:"parts"`
+			} `json:"content"`
+		} `json:"candidates"`
+	}
+	if err := json.Unmarshal(body, &out); err != nil {
+		return nil, fmt.Errorf("อ่าน JSON จาก Gemini ไม่สำเร็จ: %w", err)
+	}
+	var text strings.Builder
+	for _, candidate := range out.Candidates {
+		for _, part := range candidate.Content.Parts {
+			text.WriteString(part.Text)
+		}
+	}
+	if text.Len() == 0 {
+		return nil, errors.New("Gemini ไม่ส่งข้อความวิเคราะห์กลับมา")
+	}
+	return parseAnalysis(text.String())
 }
 
 func parseAnalysis(text string) (*analysis, error) {
@@ -190,7 +220,7 @@ func (a *App) AnalyzeImages(dest string) (*AnalyzeResult, error) {
 					outCh <- out{im: im, err: err}
 					continue
 				}
-				r, err := a.callClaude(a.ctx, jpg)
+				r, err := a.callGemini(a.ctx, jpg)
 				outCh <- out{im: im, r: r, err: err}
 			}
 		}()
@@ -232,7 +262,7 @@ func (a *App) AnalyzeImage(id uint) (*Image, error) {
 	if err != nil {
 		return nil, err
 	}
-	r, err := a.callClaude(a.ctx, jpg)
+	r, err := a.callGemini(a.ctx, jpg)
 	if err != nil {
 		return nil, err
 	}

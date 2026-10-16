@@ -71,14 +71,14 @@ func (a *App) SaveAPIKey(key string) error {
 	if key == "" {
 		return errors.New("API key ว่างเปล่า")
 	}
-	return a.setSetting("apiKey", key)
+	return a.setSetting("geminiApiKey", key)
 }
 
 func (a *App) apiKey() string {
-	if k := a.getSetting("apiKey"); k != "" {
+	if k := a.getSetting("geminiApiKey"); k != "" {
 		return k
 	}
-	return os.Getenv("ANTHROPIC_API_KEY")
+	return os.Getenv("GEMINI_API_KEY")
 }
 
 func (a *App) getSetting(k string) string {

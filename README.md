@@ -1,4 +1,4 @@
-# Photo Backup (Wails + Nuxt + GORM/SQLite + Claude Vision)
+# Photo Backup (Wails + Nuxt + GORM/SQLite + Gemini Vision)
 
 ## เตรียมเครื่อง
 - Go 1.22+, Node 20+, Wails v2: `go install github.com/wailsapp/wails/v2/cmd/wails@latest`
@@ -12,9 +12,9 @@ wails dev          # โหมดพัฒนา
 wails build        # สร้างไฟล์ที่ build/bin  (build บน Windows ได้ .exe, บน macOS ได้ .app)
 ```
 
-## ตั้งค่า Claude API key
-ใส่ที่แถบซ้าย "Anthropic API key" (เก็บในฐานข้อมูลของแอป) หรือตั้ง env `ANTHROPIC_API_KEY`
-เปลี่ยนโมเดลได้ที่ค่าคงที่ `claudeModel` ใน `analyze.go`
+## ตั้งค่า Gemini API key
+ใส่ที่แถบซ้าย "Gemini API key" (เก็บในฐานข้อมูลของแอป) หรือตั้ง env `GEMINI_API_KEY`
+ใช้โมเดล `gemini-2.5-flash` ผ่าน Gemini API
 
 ## ข้อมูลของแอป
 `<UserConfigDir>/PhotoBackup/backup.db` และโฟลเดอร์ `thumbs/` (cache รูปย่อ)
@@ -29,7 +29,7 @@ wails build        # สร้างไฟล์ที่ build/bin  (build บ�
 | จับเวลาทั้งหมด | `MoveResult.Elapsed` แสดงที่หน้า "สำรองรูปภาพ" |
 | ตรวจความถูกต้อง DB vs ไฟล์จริง (Missing Files) | `check.go` → `CheckIntegrity`, หน้า "ประวัติและการตรวจสอบ" |
 | ประวัติแยกตามปลายทาง (`/list db`) | `check.go` → `ListDB` |
-| วิเคราะห์ภาพ (คำอธิบาย + Tag) | `analyze.go` (Claude Vision) |
+| วิเคราะห์ภาพ (คำอธิบาย + Tag) | `analyze.go` (Gemini Vision) |
 | ค้นหาด้วยคำอธิบาย / Tag + Tag Cloud | `search.go`, หน้า "ค้นหาภาพ" |
 
 ## ข้อจำกัดที่ควรรู้

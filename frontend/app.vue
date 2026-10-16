@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { GetSettings, SaveAPIKey, PickFolder } from '~/wailsjs/go/main/App'
 
-const tab = ref<'project' | 'backup' | 'library' | 'history'>('project')
+const tab = ref<'backup' | 'library' | 'history'>('backup')
 const dest = useDest()
 const check = useCheck()
 const msg = ref('')
@@ -38,7 +38,6 @@ onMounted(async () => {
     <aside class="side">
       <h1>Photo Backup</h1>
       <nav>
-        <button :class="{ on: tab === 'project' }" @click="tab = 'project'">Final Project</button>
         <button :class="{ on: tab === 'backup' }" @click="tab = 'backup'">สำรองรูปภาพ</button>
         <button :class="{ on: tab === 'library' }" @click="tab = 'library'">ค้นหาภาพ</button>
         <button :class="{ on: tab === 'history' }" @click="tab = 'history'">ประวัติและการตรวจสอบ</button>
@@ -56,16 +55,15 @@ onMounted(async () => {
       </section>
 
       <details>
-        <summary>Anthropic API key {{ hasKey ? '(ตั้งค่าแล้ว)' : '(ยังไม่ได้ตั้งค่า)' }}</summary>
+        <summary>Gemini API key {{ hasKey ? '(ตั้งค่าแล้ว)' : '(ยังไม่ได้ตั้งค่า)' }}</summary>
         <div class="row" style="margin-top:10px">
-          <input v-model="keyInput" type="password" placeholder="sk-ant-..." autocomplete="off" />
+          <input v-model="keyInput" type="password" placeholder="Gemini API key" autocomplete="off" />
           <button class="btn" @click="saveKey">บันทึก key</button>
         </div>
       </details>
     </aside>
 
     <main>
-      <ProjectSummaryPanel v-if="tab === 'project'" />
       <BackupPanel v-show="tab === 'backup'" />
       <LibraryPanel v-if="tab === 'library'" />
       <HistoryPanel v-if="tab === 'history'" />
